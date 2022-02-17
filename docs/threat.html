@@ -64,8 +64,7 @@
 <h2><a name="introduction"></a>Introduction</h2>
 
 <p>Threat protection enables validation of structure and size of a document
-while parsing it. This does have its limits however due to the way the parser
-works</p>
+while parsing it.</p>
 
 <p>The <em>threat</em> parser is identical to the regular parser.</p>
 <ul>
@@ -91,9 +90,7 @@ works</p>
 parsed before a callback is issued that verifies its maximum size. For example
 even if the maximum size for an <em>attribute</em> is set to 50 bytes, a 2mb
 attribute will first be entirely parsed before the parser bails out with a size error.
-To protect against this make sure to set the maximum document size.
-Despite these shortcomings, during validation of documents (in the "good" path)
-memory pressure will be considerably lower than when using a non-SAX parser.</p>
+To protect against this make sure to set the maximum buffer size (option <em>buffer</em>).</p>
 
 <h2><a name="options"></a>Options</h2>
 
@@ -112,6 +109,7 @@ memory pressure will be considerably lower than when using a non-SAX parser.</p>
 <p>Size limits (per element, in bytes)</p>
 <ul>
 	<li><strong>document</strong> size of entire document</li>
+	<li><strong>buffer</strong> size of the unparsed buffer (see below)</li>
 	<li><strong>comment</strong> size of comment</li>
 	<li><strong>localName</strong> size of localname applies to tags and attributes. <em>NOTE:</em>
 	If not parsing namespaces, this limit will count against the full name (prefix + localName)</li>
@@ -123,8 +121,23 @@ memory pressure will be considerably lower than when using a non-SAX parser.</p>
 	<li><strong>PIData</strong> size of processing instruction data</li>
 </ul>
 
+<p>The <em>buffer</em> setting is the maximum size of uparsed data. The unparsed buffer is from the
+last byte delivered through a callback to the end of the current data fed into the parser.</p>
+<p>As an example
+assume we have set a maximum of 1 attribute, with name max 20 and value max 20. This means that
+the maximum allowed opening tag could look like this (take or leave some white space);</p>
 
-<h4><a name="example"></a>Example</h4>
+<pre class="example">&lt;abcde12345abcde12345 ABCDE12345ABCDE12345="12345678901234567890"&gt;</pre>
+
+<p>But because of the way Expat works, a user could pass in a 2mb attribute value and it would
+have to be parsed completely before the callback for the new element fires.
+In this case the maximum expected buffer would be 2x 20 (attr+tag name) + 1x 20 (attr
+value) + 50 (account for whitespace and other overhead characters) == 110. If this value is set
+and the parser is fed in chunks, it will bail out after hitting the first 110 characters of the
+faulty oversized tag.
+</p>
+
+<h4><a name="example"></a>Example of threat protected parsing</h4>
 
 <pre class="example">
 local threat_parser = require "lxp.threat"
@@ -144,6 +157,7 @@ local threat = {
 
 	-- sizes
 	document = 2000,
+	buffer = 1000,
 	comment = 20,
 	localName = 20,
 	prefix = 20,

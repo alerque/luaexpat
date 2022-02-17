@@ -16,6 +16,7 @@ describe("threats", function()
 
 		-- size limits
 		document = 200,			-- size of entire document in bytes
+		buffer = 100,			-- size of the unparsed buffer
 		comment = 20,			-- size of comment in bytes
 		localName = 20,			-- size of localname (or full name if not parsing namespaces) in bytes,
 								-- applies to tags and attributes
@@ -376,6 +377,19 @@ describe("threats", function()
 
 
 	describe("document size", function()
+
+		local old_buffer
+
+		setup(function()
+			old_buffer = threat.buffer
+			threat.buffer = nil  -- disable unparsed buffer checks with these tests
+		end)
+
+		teardown(function()
+			threat.buffer = old_buffer -- reenable old setting
+		end)
+
+
 
 		it("accepts on the edge as one", function()
 			local doc = "<root>txt</root>"
@@ -925,6 +939,46 @@ describe("threats", function()
 		it("blocks over the edge", function()
 			local r, err = p:parse("<root><?target instructions345abcdex?></root>")
 			assert.equal("processing instruction data too long", err)
+			assert.falsy(r)
+		end)
+
+	end)
+
+
+
+	describe("buffer size", function()
+
+		local old_doc
+
+		setup(function()
+			old_doc = threat.document
+			threat.document = nil  -- disable document checks with these tests
+		end)
+
+		teardown(function()
+			threat.document = old_doc -- reenable old setting
+		end)
+
+
+
+		it("blocks over the edge", function()
+			local attrs = {}
+			for i = 1,50 do
+				attrs[i] = "attr"..i.."='abcde12345abcde12345'"
+			end
+			local doc = "<tag "..table.concat(attrs, " ")..">text</tag>"
+
+			local i = 0
+			local r, err
+			repeat
+				-- parse in chunks of 10 bytes
+				i = i + 1
+				local s = (i-1) * 10 + 1
+				local e = s + 9
+				r, err = p:parse(doc:sub(s, e))
+			until not r
+
+			assert.equal("unparsed buffer too large", err)
 			assert.falsy(r)
 		end)
 
